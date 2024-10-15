@@ -129,7 +129,7 @@ for tag in tags:
     log("checking for "+tag)
     series,dver,repo = tagsplit(tag)
     tag_archs = __builtins__.list(archs)  # make a copy
-    if "23" in series:  # XXX This script will be replaced before OSG 24 anyway
+    if "23" in series or "24" in series:
         tag_archs.append("aarch64")
     repopath = '/'.join(["/usr/local/mirror/.osg.new",series,dver,repo])
     os.makedirs(repopath)
