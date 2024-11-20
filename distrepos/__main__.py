@@ -46,6 +46,7 @@ from distrepos.tag_run import run_one_tag
 from distrepos.mirror_run import update_mirrors_for_tag
 from distrepos.link_static import link_static_data
 from distrepos.util import lock_context, check_rsync, log_ml, run_with_log
+from distrepos.tarball_sync import update_tarball_dirs
 
 from datetime import datetime
 from pathlib import Path
@@ -224,6 +225,24 @@ def link_static(options: Options) -> int:
         _log.exception(f"Unexpected error updating static-data symlinks: {e}")
         return ERR_FAILURES
 
+
+def sync_tarballs(options: Options) -> int:
+    """
+    Sync client tarballs from an upstream rsync server to repo
+    """
+    _log.info("Syncing tarball cients")
+    try:
+        ok, err = update_tarball_dirs(options)
+        if ok:
+            _log.info("tarball clients updated successfully")
+            return 0
+        else:
+            _log.warning(f"Unable to sync tarball clietns: {err}")
+            return ERR_FAILURES
+    except Exception as e:
+        _log.exception(f"Unexpected error syncing tarball clients: {e}")
+        return ERR_FAILURES
+
 #
 # Main function
 #
@@ -280,6 +299,9 @@ def main(argv: t.Optional[t.List[str]] = None) -> int:
 
     if ActionType.LINK_STATIC in args.action and not result:
         result = link_static(options)
+
+    if ActionType.TARBALL_SYNC in args.action and not result:
+        result = sync_tarballs(options)
 
     # If all actions were successful, update the repo timestamp
     if not result:

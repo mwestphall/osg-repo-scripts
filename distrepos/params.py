@@ -26,7 +26,10 @@ DEFAULT_CONDOR_RSYNC = "rsync://rsync.cs.wisc.edu/htcondor"
 DEFAULT_CONFIG = "/etc/distrepos.conf"
 DEFAULT_DESTROOT = "/data/repo"
 DEFAULT_KOJI_RSYNC = "rsync://kojihub2000.chtc.wisc.edu/repos-dist"
+DEFAULT_TARBALL_RSYNC = "rsync://rsync.cs.wisc.edu/vdt/"
 DEFAULT_LOCK_DIR = "/var/lock/rsync_dist_repo"
+
+DEFAULT_TARBALL_INSTALL_DIR = 'tarball-install'
 
 # These options are required to be present _and_ nonempty.  Some of them may
 # come from the DEFAULT section.
@@ -76,11 +79,13 @@ class Options(t.NamedTuple):
     static_root: t.Optional[Path]
     koji_rsync: str
     condor_rsync: str
+    tarball_rsync: str
     lock_dir: t.Optional[Path]
     mirror_root: t.Optional[Path]
     mirror_working_root: t.Optional[Path]
     mirror_prev_root: t.Optional[Path]
     mirror_hosts: t.List[str]
+    tarball_install: str
 
 
 class ActionType(str, Enum):
@@ -88,6 +93,7 @@ class ActionType(str, Enum):
     CADIST = "cadist"
     MIRROR = "mirror"
     LINK_STATIC = "link_static"
+    TARBALL_SYNC = "tarball_sync"
 
 
 def format_tag(
@@ -387,11 +393,13 @@ def get_options(args: Namespace, config: ConfigParser) -> Options:
         static_root=Path(static_root) if static_root else None,
         condor_rsync=options_section.get("condor_rsync", DEFAULT_CONDOR_RSYNC),
         koji_rsync=options_section.get("koji_rsync", DEFAULT_KOJI_RSYNC),
+        tarball_rsync=options_section.get("tarball_rsync", DEFAULT_TARBALL_RSYNC),
         lock_dir=Path(args.lock_dir) if args.lock_dir else None,
         mirror_root=mirror_root,
         mirror_working_root=mirror_working_root,
         mirror_prev_root=mirror_prev_root,
         mirror_hosts=mirror_hosts,
+        tarball_install=options_section.get("tarball_install", DEFAULT_TARBALL_INSTALL_DIR)
     )
     return options
 
