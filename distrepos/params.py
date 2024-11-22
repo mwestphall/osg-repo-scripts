@@ -50,6 +50,14 @@ class SrcDst(t.NamedTuple):
     def __str__(self):
         return f"{self.src} -> {self.dst}"
 
+class ReleaseSeries(t.NamedTuple):
+    """
+    Parameters for a release series based on the [series] sections of the
+    config file.
+    """
+    name: str
+    dest: str
+    arches: t.List[str]
 
 class Tag(t.NamedTuple):
     """
@@ -66,6 +74,7 @@ class Tag(t.NamedTuple):
     debug_rpms_dest: str
     source_rpms_dest: str
     arch_rpms_mirror_base: str
+    release_series: ReleaseSeries
 
 
 class Options(t.NamedTuple):
@@ -93,6 +102,7 @@ class ActionType(str, Enum):
     CADIST = "cadist"
     MIRROR = "mirror"
     LINK_STATIC = "link_static"
+    LINK_RELEASE = "link_release"
     TARBALL_SYNC = "tarball_sync"
 
 
@@ -277,6 +287,17 @@ def get_taglist(args: Namespace, config: ConfigParser) -> t.List[Tag]:
     tagnames = args.tags
     taglist = []
 
+    # Get the list of release series to which each tag might apply
+    release_series : t.List[ReleaseSeries] = []
+    for section_name, section in config.items():
+        if not section_name.startswith("series "):
+            continue
+        release_series.append(ReleaseSeries(
+            name=section_name.lstrip("series "),
+            dest=section['dest'],
+            arches=section['arches'].split()
+        ))
+
     # First process tagsets; this needs to be in a separate loop because it creates
     # tag sections.
     for tagset_section_name in (
@@ -307,6 +328,8 @@ def get_taglist(args: Namespace, config: ConfigParser) -> t.List[Tag]:
             "debug_rpms_subdir", fallback=arch_rpms_subdir
         ).strip("/")
         source_rpms_subdir = section["source_rpms_subdir"].strip("/")
+
+        series_for_tag = [s for s in release_series if dest.startswith(s.dest)]
         taglist.append(
             Tag(
                 name=tag_name,
@@ -318,6 +341,7 @@ def get_taglist(args: Namespace, config: ConfigParser) -> t.List[Tag]:
                 arch_rpms_dest=f"{dest}/{arch_rpms_subdir}",
                 debug_rpms_dest=f"{dest}/{debug_rpms_subdir}",
                 source_rpms_dest=f"{dest}/{source_rpms_subdir}",
+                release_series = series_for_tag[0] if len(series_for_tag) == 1 else None
             )
         )
 

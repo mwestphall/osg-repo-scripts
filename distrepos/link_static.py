@@ -56,7 +56,7 @@ def link_static_data(options: Options, repo_name: str = "osg") -> t.Tuple[bool, 
             return False, f"Expected static data symlink {dest} is not a symlink"
 
         # Create the symlink
-        dest.symlink_to(pth)
+        dest.symlink_to(pth.relative_to(dest.parent))
     
     return True, ""
         

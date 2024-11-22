@@ -261,7 +261,7 @@ def main(argv: t.Optional[t.List[str]] = None) -> int:
     config = ConfigParser(interpolation=ExtendedInterpolation())
     config.read(config_path)
 
-    options, taglist = parse_config(args, config)
+    options, series, taglist = parse_config(args, config)
 
     if args.print_tags:
         for tag in taglist:
