@@ -5,10 +5,9 @@ services:
   repo:
     #image: opensciencegrid/repo
     build: .
-    privileged: true
     volumes:
       - repo-data:/data
-      - static-data:/static-data
+      - static-data:/data/repo/osg/archive
     ports:
       - "8080:80"
 

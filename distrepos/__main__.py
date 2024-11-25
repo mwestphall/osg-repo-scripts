@@ -37,6 +37,7 @@ from distrepos.params import (
     Options,
     Tag,
     ActionType,
+    ReleaseSeries,
     format_tag,
     format_mirror,
     get_args,
@@ -44,7 +45,7 @@ from distrepos.params import (
 )
 from distrepos.tag_run import run_one_tag
 from distrepos.mirror_run import update_mirrors_for_tag
-from distrepos.link_static import link_static_data
+from distrepos.symlink_utils import link_static_data, link_latest_release
 from distrepos.util import lock_context, check_rsync, log_ml, run_with_log
 from distrepos.tarball_sync import update_tarball_dirs
 
@@ -226,6 +227,24 @@ def link_static(options: Options) -> int:
         return ERR_FAILURES
 
 
+def link_release(options: Options, release_series: t.List[ReleaseSeries]) -> int:
+    """
+    Create symlinks for the latest "osg-release" rpm in the "release" repo of a release series
+    """
+    _log.info("Updating symlinks to latest osg-release rpm")
+    try:
+        ok, err = link_latest_release(options, release_series)
+        if ok:
+            _log.info("latest-release symlinks updated successfully")
+            return 0
+        else:
+            _log.warning(f"Unable to update latest-release symlinks: {err}")
+            return ERR_FAILURES
+    except Exception as e:
+        _log.exception(f"Unexpected error updating latest-release symlinks: {e}")
+        return ERR_FAILURES
+
+
 def sync_tarballs(options: Options) -> int:
     """
     Sync client tarballs from an upstream rsync server to repo
@@ -302,6 +321,9 @@ def main(argv: t.Optional[t.List[str]] = None) -> int:
 
     if ActionType.TARBALL_SYNC in args.action and not result:
         result = sync_tarballs(options)
+
+    if ActionType.LINK_RELEASE in args.action and not result:
+        result = link_release(options, series)
 
     # If all actions were successful, update the repo timestamp
     if not result:
