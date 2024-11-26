@@ -334,7 +334,7 @@ def get_taglist(args: Namespace, config: ConfigParser) -> t.List[Tag]:
 
     return taglist
 
-def get_release_series(args: Namespace, config: ConfigError) -> t.List[ReleaseSeries]:
+def get_release_series(args: Namespace, config: ConfigParser) -> t.List[ReleaseSeries]:
     """ 
     Parse the 'series' sections of the config to return a list of ReleaseSeries objects.
     Args:
@@ -351,7 +351,7 @@ def get_release_series(args: Namespace, config: ConfigError) -> t.List[ReleaseSe
         if not section_name.startswith("series "):
             continue
         release_series.append(ReleaseSeries(
-            name=section_name.lstrip("series "),
+            name=section_name.removeprefix("series "),
             dest=section['dest'],
             arches=section['arches'].split(),
             dvers=section['dvers'].split()
