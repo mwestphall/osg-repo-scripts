@@ -50,6 +50,15 @@ class SrcDst(t.NamedTuple):
     def __str__(self):
         return f"{self.src} -> {self.dst}"
 
+class ReleaseSeries(t.NamedTuple):
+    """
+    Parameters for a release series based on the [series] sections of the
+    config file.
+    """
+    name: str
+    dest: str
+    arches: t.List[str]
+    dvers: t.List[str]
 
 class Tag(t.NamedTuple):
     """
@@ -93,6 +102,7 @@ class ActionType(str, Enum):
     CADIST = "cadist"
     MIRROR = "mirror"
     LINK_STATIC = "link_static"
+    LINK_RELEASE = "link_release"
     TARBALL_SYNC = "tarball_sync"
 
 
@@ -307,6 +317,7 @@ def get_taglist(args: Namespace, config: ConfigParser) -> t.List[Tag]:
             "debug_rpms_subdir", fallback=arch_rpms_subdir
         ).strip("/")
         source_rpms_subdir = section["source_rpms_subdir"].strip("/")
+
         taglist.append(
             Tag(
                 name=tag_name,
@@ -323,10 +334,33 @@ def get_taglist(args: Namespace, config: ConfigParser) -> t.List[Tag]:
 
     return taglist
 
+def get_release_series(args: Namespace, config: ConfigParser) -> t.List[ReleaseSeries]:
+    """ 
+    Parse the 'series' sections of the config to return a list of ReleaseSeries objects.
+    Args:
+        args: command-line arguments parsed by argparse
+        config: ConfigParser configuration
+
+    Returns:
+        a list of ReleaseSeries objects
+    """
+
+    # Get the list of release series to which each tag might apply
+    release_series : t.List[ReleaseSeries] = []
+    for section_name, section in config.items():
+        if not section_name.startswith("series "):
+            continue
+        release_series.append(ReleaseSeries(
+            name=section_name.removeprefix("series "),
+            dest=section['dest'],
+            arches=section['arches'].split(),
+            dvers=section['dvers'].split()
+        ))
+    return release_series
 
 def parse_config(
     args: Namespace, config: ConfigParser
-) -> t.Tuple[Options, t.List[Tag]]:
+) -> t.Tuple[Options, t.List[ReleaseSeries], t.List[Tag]]:
     """
     Parse the config file and return the tag list and Options object from the parameters.
     Apply any overrides from the command-line.
@@ -351,8 +385,11 @@ def parse_config(
         raise ConfigError("No (matching) [tag ...] or [tagset ...] sections found")
 
     options = get_options(args, config)
+
+    release_series = get_release_series(args, config)
     return (
         options,
+        release_series,
         taglist,
     )
 

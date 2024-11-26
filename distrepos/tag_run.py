@@ -12,9 +12,10 @@ import subprocess as sp
 import tempfile
 import typing as t
 from pathlib import Path
+import re
 
 from distrepos.error import DiskFullError, TagFailure
-from distrepos.params import Options, Tag
+from distrepos.params import Options, Tag, ReleaseSeries
 from distrepos.util import (
     RSYNC_NOT_FOUND,
     RSYNC_OK,
@@ -326,7 +327,6 @@ def create_compat_symlink(working_path: Path):
     except OSError as err:
         raise TagFailure(f"Error {description}") from err
     _log.info("%s ok", description)
-
 
 def update_release_repos(release_path: Path, working_path: Path, previous_path: Path):
     """
