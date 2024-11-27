@@ -279,32 +279,40 @@ def run_createrepo(working_path: Path, arches: t.List[str]):
     src_pkglist = src_dir / "pkglist"
 
     callbacks :t.List[t.Callable[[],t.Tuple[bool, t.Any]]]= []
-    callbacks.append(popen_with_log(["createrepo_c", str(src_dir), f"--pkglist={src_pkglist}"]))
     description = "running createrepo on SRPMs"
+    callbacks.append(popen_with_log(["createrepo_c", str(src_dir), f"--pkglist={src_pkglist}"], context=description))
 
     # arch-specific packages and debug repos
     for arch in arches:
         arch_dir = working_path / arch
         arch_pkglist = arch_dir / "pkglist"
+        description = f"running createrepo on {arch} rpm"
         callbacks.append(popen_with_log(
-            ["createrepo_c", str(arch_dir), f"--pkglist={arch_pkglist}"]
+            ["createrepo_c", str(arch_dir), f"--pkglist={arch_pkglist}"],
+            context=description
         ))
 
         arch_debug_dir = arch_dir / "debug"
         arch_debug_pkglist = arch_debug_dir / "pkglist"
         if not arch_debug_dir.exists():
             continue
+        description = f"running createrepo on {arch} debuginfo rpms"
         callbacks.append(popen_with_log(
-            ["createrepo_c", str(arch_debug_dir), f"--pkglist={arch_debug_pkglist}"]
+            ["createrepo_c", str(arch_debug_dir), f"--pkglist={arch_debug_pkglist}"],
+            context=description
         ))
     
-    all_ok = True
+    failures = []
     for callback in callbacks:
-        ok, proc = callback()
-        all_ok &= ok
+        ok, message = callback()
+        if ok:
+            _log.info(f"{message} ok")
+        else:
+            failures.append(message)
 
-    if not all_ok:
-        raise TagFailure(f"Error running createrepo_c")
+
+    if len(failures):
+        raise TagFailure(f"Error(s) {', '.join(failures)}")
 
 
 def create_compat_symlink(working_path: Path):

@@ -243,8 +243,9 @@ def popen_with_log(
     stdout_max_lines=24,
     stderr_max_lines=40,
     log: t.Optional[logging.Logger] = None,
+    context: str = "",
     **kwargs,
-) -> t.Callable[[],t.Tuple[bool, sp.CompletedProcess]]:
+) -> t.Callable[[],t.Tuple[bool, str]]:
 
     """
     Helper function to start a command and log its output.  Returns a closure that will evaluate to
@@ -267,6 +268,9 @@ def popen_with_log(
     def wait_proc():
         proc.wait()
         ok = proc.returncode in ok_exit
+        # TODO this is hacky, log_proc expect string-ish stdout/err
+        proc.stdout = proc.stdout.read()
+        proc.stderr = proc.stderr.read()
         log_proc(
             proc,
             args[0],
@@ -277,7 +281,7 @@ def popen_with_log(
             stderr_max_lines,
             log=log,
         )
-        return ok, proc
+        return ok, context
     return wait_proc
 
 #
