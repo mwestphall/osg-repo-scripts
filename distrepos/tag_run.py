@@ -277,7 +277,7 @@ def run_createrepo(working_path: Path, arches: t.List[str]):
     src_dir = working_path / "src"
     src_pkglist = src_dir / "pkglist"
 
-    ok, proc = run_with_log(["createrepo_c", str(src_dir), f"--pkglist={src_pkglist}"])
+    ok, proc = run_with_log(["createrepo_c", '--update', str(src_dir), f"--pkglist={src_pkglist}"])
     description = "running createrepo on SRPMs"
     if ok:
         _log.info("%s ok", description)
@@ -289,7 +289,7 @@ def run_createrepo(working_path: Path, arches: t.List[str]):
         arch_dir = working_path / arch
         arch_pkglist = arch_dir / "pkglist"
         ok, proc = run_with_log(
-            ["createrepo_c", str(arch_dir), f"--pkglist={arch_pkglist}"]
+            ["createrepo_c",  '--update', str(arch_dir), f"--pkglist={arch_pkglist}"]
         )
         description = f"running createrepo on {arch} rpms"
         if ok:
@@ -302,7 +302,7 @@ def run_createrepo(working_path: Path, arches: t.List[str]):
         if not arch_debug_dir.exists():
             continue
         ok, proc = run_with_log(
-            ["createrepo_c", str(arch_debug_dir), f"--pkglist={arch_debug_pkglist}"]
+            ["createrepo_c",  '--update', str(arch_debug_dir), f"--pkglist={arch_debug_pkglist}"]
         )
         description = f"running createrepo on {arch} debuginfo rpms"
         if ok:
