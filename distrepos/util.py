@@ -235,6 +235,50 @@ def run_with_log(
     )
     return ok, proc
 
+def popen_with_log(
+    *args,
+    ok_exit: t.Union[int, t.Container[int]] = 0,
+    success_level=logging.DEBUG,
+    failure_level=logging.ERROR,
+    stdout_max_lines=24,
+    stderr_max_lines=40,
+    log: t.Optional[logging.Logger] = None,
+    **kwargs,
+) -> t.Callable[[],t.Tuple[bool, sp.CompletedProcess]]:
+
+    """
+    Helper function to start a command and log its output.  Returns a closure that will evaluate to
+    the  boolean of whether the exit code was acceptable, and the CompletedProcess object,
+    once the process completes.
+
+    See Also: log_proc()
+    """
+    if isinstance(ok_exit, int):
+        ok_exit = [ok_exit]
+    if not log:
+        log = logging.getLogger(__name__)
+    kwargs.setdefault("stdout", sp.PIPE)
+    kwargs.setdefault("stderr", sp.PIPE)
+    kwargs.setdefault("encoding", "latin-1")
+
+    log.debug("running %r %r", args, kwargs)
+
+    proc = sp.Popen(*args, **kwargs)
+    def wait_proc():
+        proc.wait()
+        ok = proc.returncode in ok_exit
+        log_proc(
+            proc,
+            args[0],
+            ok_exit,
+            success_level,
+            failure_level,
+            stdout_max_lines,
+            stderr_max_lines,
+            log=log,
+        )
+        return ok, proc
+    return wait_proc
 
 #
 # Wrappers around rsync

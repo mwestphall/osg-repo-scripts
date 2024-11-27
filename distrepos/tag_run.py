@@ -26,6 +26,7 @@ from distrepos.util import (
     rsync_disk_is_full,
     rsync_with_link,
     run_with_log,
+    popen_with_log,
 )
 
 _log = logging.getLogger(__name__)
@@ -277,38 +278,33 @@ def run_createrepo(working_path: Path, arches: t.List[str]):
     src_dir = working_path / "src"
     src_pkglist = src_dir / "pkglist"
 
-    ok, proc = run_with_log(["createrepo_c", str(src_dir), f"--pkglist={src_pkglist}"])
+    callbacks :t.List[t.Callable[[],t.Tuple[bool, t.Any]]]= []
+    callbacks.append(popen_with_log(["createrepo_c", str(src_dir), f"--pkglist={src_pkglist}"]))
     description = "running createrepo on SRPMs"
-    if ok:
-        _log.info("%s ok", description)
-    else:
-        raise TagFailure(f"Error {description}")
 
     # arch-specific packages and debug repos
     for arch in arches:
         arch_dir = working_path / arch
         arch_pkglist = arch_dir / "pkglist"
-        ok, proc = run_with_log(
+        callbacks.append(popen_with_log(
             ["createrepo_c", str(arch_dir), f"--pkglist={arch_pkglist}"]
-        )
-        description = f"running createrepo on {arch} rpms"
-        if ok:
-            _log.info("%s ok", description)
-        else:
-            raise TagFailure(f"Error {description}")
+        ))
 
         arch_debug_dir = arch_dir / "debug"
         arch_debug_pkglist = arch_debug_dir / "pkglist"
         if not arch_debug_dir.exists():
             continue
-        ok, proc = run_with_log(
+        callbacks.append(popen_with_log(
             ["createrepo_c", str(arch_debug_dir), f"--pkglist={arch_debug_pkglist}"]
-        )
-        description = f"running createrepo on {arch} debuginfo rpms"
-        if ok:
-            _log.info("%s ok", description)
-        else:
-            raise TagFailure(f"Error {description}")
+        ))
+    
+    all_ok = True
+    for callback in callbacks:
+        ok, proc = callback()
+        all_ok &= ok
+
+    if not all_ok:
+        raise TagFailure(f"Error running createrepo_c")
 
 
 def create_compat_symlink(working_path: Path):
