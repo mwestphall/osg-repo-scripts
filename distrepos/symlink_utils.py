@@ -49,12 +49,8 @@ def link_static_data(options: Options, repo_name: str = "osg") -> t.Tuple[bool, 
     # create missing symlinks to static_src in data_dist
     for pth in static_src.iterdir():
         dest = data_dst / pth.name
-        # Continue if symlink is already correct
-        if dest.is_symlink() and dest.readlink() == pth:
-            continue
-
-        if dest.is_symlink() and dest.readlink() != pth:
-            # Reassign incorrect symlinks
+        if dest.exists() and dest.is_symlink():
+            # Unlink, then re-link the symlink
             dest.unlink()
         elif dest.exists():
             # Fail if dest is not a symlink
