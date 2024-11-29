@@ -106,6 +106,9 @@ def link_latest_release(options: Options, release_series: t.List[ReleaseSeries])
 
             release_rpms.sort(key = _get_release_number, reverse=True)
             latest_symlink = series_root / f"osg-{series.name}-{dver}-release-latest.rpm"
-            latest_symlink.symlink_to(release_rpms[0].relative_to(latest_symlink.parent))
-    
+            latest_symlink_target = release_rpms[0].relative_to(latest_symlink.parent)
+            if latest_symlink.resolve() != latest_symlink_target:
+                latest_symlink.unlink(missing_ok=True)
+                latest_symlink.symlink_to(latest_symlink_target)
+
     return True, ""
