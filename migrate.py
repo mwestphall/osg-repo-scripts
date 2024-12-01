@@ -7,7 +7,6 @@ Migration script from mosh-based repo layout to distrepos-based repo layout.
 
 import logging
 import os
-import pathlib
 import re
 import shutil
 import sys
@@ -75,29 +74,59 @@ def get_condor_package_subdirs(repo: Path):
 
 
 def migrate_one_repo(repo: Path, packages_dir: Path, dry_run: bool = False) -> bool:
-    condor_package_subdirs = get_condor_package_subdirs(repo, packages_dir)
+    """
+    Migrate all of the RPMs in one repo to the new layout.  Skips a repo if
+    there are any RPMs from OSG 3.6 or earlier, since the layouts for those
+    repos didn't change.
+
+    Args:
+        repo: The repo directory to migrate.
+        packages_dir: The Packages directory to move RPMs to.  Symlinks will be
+            created in the original locations.
+        dry_run:
+
+    Returns:
+        True if RPMs were migrated, False if the migration was skipped, for
+        example due to pre-OSG-23 RPMs being found.
+    """
     all_rpms = sorted(repo.glob("*.rpm"))
     for rpm in all_rpms:
-        if re.search(r"[.]osg(3[456]|devops)", rpm.name):
+        if re.search(r"[.]osg(3[123456]|devops)", rpm.name):
             _log.warning(f"Pre-OSG-23 RPM found: {rpm}.  Not migrating {repo}")
             return False
+
+    condor_package_subdirs = get_condor_package_subdirs(repo)
+
     for rpm in all_rpms:
         if rpm.is_symlink:
+            # This directory might have already been migrated.
             _log.debug(f"Skipping symlink {rpm}")
             continue
+
+        # The new repo layout puts RPMs taken from the Condor repos into
+        # subdirectories based on which Condor repo they were taken from.
         is_condor_rpm = any(rpm.match(gl) for gl in CONDOR_RPM_GLOBS)
         if is_condor_rpm:
             destdir = packages_dir / condor_package_subdirs[0]
+        # Other RPMs are moved into directories based on the first letter of
+        # the RPM (or '0' if the first character is a number).
         elif rpm.name[0] in "0123456789":
             destdir = packages_dir / "0"
         else:
             destdir = packages_dir / rpm.name[0].lower()
+
         destfile = destdir / rpm.name
         _log.info(f"Move {rpm} to {destfile}")
         if not dry_run:
             destdir.mkdir(exist_ok=True, parents=True)
             move_and_link(rpm, destfile)
+
         if is_condor_rpm:
+            # The Condor RPMs in this repo might be from a combination of UW
+            # repos, e.g., both condor-release and condor-update.  We don't
+            # know _which_ condor repo they were taken from so to be safe,
+            # put the RPM in all of them.  Use hardlinks if possible to save
+            # disk space.
             for other_subdir in condor_package_subdirs[1:]:
                 other_destdir = packages_dir / other_subdir
                 other_destfile = other_destdir / rpm.name
@@ -105,22 +134,8 @@ def migrate_one_repo(repo: Path, packages_dir: Path, dry_run: bool = False) -> b
                 if not dry_run:
                     other_destdir.mkdir(exist_ok=True, parents=True)
                     hardlink_or_copy_file(rpm, other_destfile)
+
     return True
-
-
-def migrate_one_source(repo: Path, dry_run: bool = False):
-    if repo.is_symlink():
-        _log.info(f"{repo} is already a symlink; skipping")
-        return
-    dest = repo.resolve().parent.parent / "src"
-    if dest.exists():
-        _log.info(f"{dest} already exists; skipping")
-        return
-
-    if migrate_one_repo(repo, repo / "Packages", dry_run=dry_run):
-        _log.info(f"Rename {repo} to {dest} and create symlink")
-        if not dry_run:
-            move_and_link(repo, dest)
 
 
 def migrate_source(args):
@@ -128,9 +143,21 @@ def migrate_source(args):
     Migrate SRPMs
     """
     for repo in repos(args.dirs):
-        if repo.parts[-2:] == ("source", "SRPMS"):
-            _log.info(f"Migrating {repo}")
-            migrate_one_source(repo, args.dry_run)
+        if repo.parts[-2:] != ("source", "SRPMS"):
+            continue
+        if repo.is_symlink():
+            _log.info(f"{repo} is already a symlink; skipping")
+            return
+        dest = repo.resolve().parent.parent / "src"
+        if dest.exists():
+            _log.info(f"{dest} already exists; skipping")
+            return
+
+        _log.info(f"Migrating {repo}")
+        if migrate_one_repo(repo, repo / "Packages", dry_run=args.dry_run):
+            _log.info(f"Rename {repo} to {dest} and create symlink")
+            if not args.dry_run:
+                move_and_link(repo, dest)
 
 
 def migrate_binary(args):
