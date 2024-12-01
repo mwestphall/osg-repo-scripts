@@ -98,7 +98,7 @@ def migrate_one_repo(repo: Path, packages_dir: Path, dry_run: bool = False) -> b
     condor_package_subdirs = get_condor_package_subdirs(repo)
 
     for rpm in all_rpms:
-        if rpm.is_symlink:
+        if rpm.is_symlink():
             # This directory might have already been migrated.
             _log.debug(f"Skipping symlink {rpm}")
             continue
