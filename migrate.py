@@ -28,7 +28,7 @@ CONDOR_RPM_GLOBS = [
 _log = logging.getLogger(__name__)
 
 
-def move_and_link(frompath: os.PathLike, topath: os.PathLike):
+def move_and_symlink(frompath: os.PathLike, topath: os.PathLike):
     """
     Move a file and create a symlink at its original location pointing
     to its new location.
@@ -83,7 +83,8 @@ def migrate_one_repo(repo: Path, packages_dir: Path, dry_run: bool = False) -> b
         repo: The repo directory to migrate.
         packages_dir: The Packages directory to move RPMs to.  Symlinks will be
             created in the original locations.
-        dry_run:
+        dry_run: Set this to True to avoid making actual changes and only print
+            what would be done.
 
     Returns:
         True if RPMs were migrated, False if the migration was skipped, for
@@ -119,7 +120,7 @@ def migrate_one_repo(repo: Path, packages_dir: Path, dry_run: bool = False) -> b
         _log.info(f"Move {rpm} to {destfile}")
         if not dry_run:
             destdir.mkdir(exist_ok=True, parents=True)
-            move_and_link(rpm, destfile)
+            move_and_symlink(rpm, destfile)
 
         if is_condor_rpm:
             # The Condor RPMs in this repo might be from a combination of UW
@@ -140,7 +141,16 @@ def migrate_one_repo(repo: Path, packages_dir: Path, dry_run: bool = False) -> b
 
 def migrate_source(args):
     """
-    Migrate SRPMs
+    Migrate SRPMs.  This is two steps:
+    1. Move the RPMs into Packages/<letter> subdirectories as usual
+    2. Move the `source/SRPMS` dir to `src` and create a compat symlink.
+
+    If step 1 does not migrate any RPMs (because it's a pre-OSG-23 repo) then
+    the rest is skipped.
+
+    If `source/SRPMS` is already a symlink, we assume it's been migrated
+    and leave it alone.  Also if `src` exists, we assume it's been migrated
+    and also do nothing.
     """
     for repo in repos(args.dirs):
         if repo.parts[-2:] != ("source", "SRPMS"):
@@ -157,12 +167,14 @@ def migrate_source(args):
         if migrate_one_repo(repo, repo / "Packages", dry_run=args.dry_run):
             _log.info(f"Rename {repo} to {dest} and create symlink")
             if not args.dry_run:
-                move_and_link(repo, dest)
+                move_and_symlink(repo, dest)
+        else:
+            _log.info(f"Skipping rename of {repo} to {dest}")
 
 
 def migrate_binary(args):
     """
-    Migrate RPMs in arch-specific repos
+    Migrate RPMs in arch-specific repos.
     """
     for repo in repos(args.dirs):
         if repo.name not in BINARY_ARCHES:
@@ -174,6 +186,10 @@ def migrate_binary(args):
 def migrate_debug(args):
     """
     Migrate the debuginfo and debugsource RPMs.
+    In the new repo layout, the debug RPMs are mixed in with the non-debug RPMs,
+    though the repo metadata remains in the "debug" subdirectory.  A "pkglist"
+    file is used to list which files are in the debug repo vs the main repo,
+    but the migrate script uses symlinks instead.
     """
     for repo in repos(args.dirs):
         if repo.name != "debug" and repo.parent.name not in BINARY_ARCHES:
