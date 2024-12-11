@@ -1,8 +1,21 @@
 #!/usr/bin/env python3
 """
-migrate
-
 Migration script from mosh-based repo layout to distrepos-based repo layout.
+This script rearranges the repo directories given on the command line
+to the layout used by the EL9 repo server, which, among a few other changes,
+groups RPMs into subdirectories based on their starting letter.
+
+To work with existing repo metadata, the script creates symlinks from the new
+locations to the old locations.
+
+A migration should be followed up with an rsync from the new repo server,
+with the `--delay-updates --delete-delay` flags added.  For example,
+
+    rsync -av --delay-updates --delete-delay \\
+        repo-rsync-itb.osg-htc.org::osg/24-main/ /mirror/osg/24-main
+
+This will update the metadata and delete the symlinks, making sure everything
+has been downloaded before making any changes.
 """
 
 import logging
@@ -11,7 +24,7 @@ import re
 import shutil
 import sys
 import typing as t
-from argparse import ArgumentParser
+from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from pathlib import Path
 
 BINARY_ARCHES = ["aarch64", "x86_64"]
@@ -214,7 +227,9 @@ def get_args(argv):
     Parse and validate arguments
     """
     all_actions = ["source", "binary", "debug"]
-    parser = ArgumentParser()
+    parser = ArgumentParser(
+        description=__doc__, formatter_class=RawDescriptionHelpFormatter
+    )
     parser.add_argument("dirs", nargs="*", help="Directories to migrate")
     parser.add_argument(
         "--source",
