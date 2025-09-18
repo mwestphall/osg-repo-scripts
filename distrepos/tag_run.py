@@ -4,6 +4,7 @@ The main entry point is run_one_tag(); other functions are helpers.
 """
 
 import errno
+import filecmp
 import logging
 import os
 import shutil
@@ -28,7 +29,6 @@ from distrepos.util import (
     rsync_with_link,
     run_with_log,
 )
-
 
 _module_logger = logging.getLogger(__name__)
 
@@ -307,8 +307,6 @@ def same_pkglist_files(working_path: Path, release_path: Path, arches: list[str]
 
         working_arch_debug_dir = working_path / arch / "debug"
         release_arch_debug_dir = release_path / arch / "debug"
-        working_arch_debug_pkglist = working_arch_debug_dir / "pkglist"
-        release_arch_debug_pkglist = release_arch_debug_dir / "pkglist"
         if not working_arch_debug_dir.exists():
             continue
         working_arch_debug_pkglist = working_arch_debug_dir / "pkglist"
@@ -320,13 +318,41 @@ def same_pkglist_files(working_path: Path, release_path: Path, arches: list[str]
     return True
 
 
-def _compare_pkglists(working_pkglist: Path, release_pkglist: Path, log: MaybeLogger = None) -> bool:
+def _compare_pkglists(pkglist1: Path, pkglist2: Path, log: MaybeLogger = None) -> bool:
+    """
+    Return whether two pkglist files, as well as the files referenced in them, are identical
+
+    Args:
+        pkglist1, pkglist2: The paths to the package lists to compare
+        log: A logger
+
+    Returns:
+        True if the two pkglist files, as well as the files referenced in them, are identical
+    """
+    parent1 = pkglist1.parent
+    parent2 = pkglist2.parent
+
     try:
-        if working_pkglist.read_bytes() != release_pkglist.read_bytes():
-            log.info("%s differs", working_pkglist)
+        pkglist1_text = pkglist1.read_text(encoding="latin-1")
+        pkglist2_text = pkglist2.read_text(encoding="latin-1")
+        if pkglist1_text != pkglist2_text:
+            log.info("%s and %s differ in contents", pkglist1, pkglist2)
             return False
+
+        for rpmfile in pkglist1_text.splitlines():
+            if not rpmfile.endswith(".rpm"):
+                continue
+            rpm1 = parent1 / rpmfile.strip()
+            rpm2 = parent2 / rpmfile.strip()
+            try:
+                if not filecmp.cmp(rpm1, rpm2):
+                    log.warning("%s and %s differ in contents", rpm1, rpm2)
+                    return False
+            except OSError as err:
+                log.warning("Error checking comparing %s and %s: %s", rpm1, rpm2, err)
+                return False
     except OSError as err:
-        log.warning("Error checking pkglist file %s: %s", working_pkglist, err)
+        log.warning("Error comparing pkglist files %s and %s: %s", pkglist1, pkglist2, err)
         return False
     return True
 
