@@ -4,6 +4,7 @@ The main entry point is run_one_tag(); other functions are helpers.
 """
 
 import errno
+import filecmp
 import logging
 import os
 import shutil
@@ -28,7 +29,6 @@ from distrepos.util import (
     rsync_with_link,
     run_with_log,
 )
-
 
 _module_logger = logging.getLogger(__name__)
 
@@ -273,6 +273,90 @@ def update_pkglist_files(working_path: Path, arches: t.List[str], log: MaybeLogg
             raise TagFailure(f"OSError {description}: {err}") from err
 
 
+def same_pkglist_files(working_path: Path, release_path: Path, arches: list[str], log: MaybeLogger = None):
+    """
+    Check for identical pkglist files between the repo we're in and the previous path.  If they're identical, we can avoid running createrepo.
+
+    Args:
+        working_path: The repo currently being constructed
+        release_path: The previous, 'live' repo
+        arches: The list of architectures in the repo
+        log (optional): A logger
+
+    Returns:
+        True if the pkglist files are identical
+    """
+    log = log or _module_logger
+    log.debug("same_pkglist_files(%r, %r, %r)", working_path, release_path, arches)
+
+    # Check src dir
+
+    working_src_pkglist = working_path / "src" / "pkglist"
+    release_src_pkglist = release_path / "src" / "pkglist"
+
+    if not _compare_pkglists(working_src_pkglist, release_src_pkglist, log):
+        return False
+
+    # arch-specific packages and debug repos
+    for arch in arches:
+        working_arch_pkglist = working_path / arch / "pkglist"
+        release_arch_pkglist = release_path / arch / "pkglist"
+
+        if not _compare_pkglists(working_arch_pkglist, release_arch_pkglist, log):
+            return False
+
+        working_arch_debug_dir = working_path / arch / "debug"
+        release_arch_debug_dir = release_path / arch / "debug"
+        if not working_arch_debug_dir.exists():
+            continue
+        working_arch_debug_pkglist = working_arch_debug_dir / "pkglist"
+        release_arch_debug_pkglist = release_arch_debug_dir / "pkglist"
+
+        if not _compare_pkglists(working_arch_debug_pkglist, release_arch_debug_pkglist, log):
+            return False
+
+    return True
+
+
+def _compare_pkglists(pkglist1: Path, pkglist2: Path, log: MaybeLogger = None) -> bool:
+    """
+    Return whether two pkglist files, as well as the files referenced in them, are identical
+
+    Args:
+        pkglist1, pkglist2: The paths to the package lists to compare
+        log: A logger
+
+    Returns:
+        True if the two pkglist files, as well as the files referenced in them, are identical
+    """
+    parent1 = pkglist1.parent
+    parent2 = pkglist2.parent
+
+    try:
+        pkglist1_text = pkglist1.read_text(encoding="latin-1")
+        pkglist2_text = pkglist2.read_text(encoding="latin-1")
+        if pkglist1_text != pkglist2_text:
+            log.info("%s and %s differ in contents", pkglist1, pkglist2)
+            return False
+
+        for rpmfile in pkglist1_text.splitlines():
+            if not rpmfile.endswith(".rpm"):
+                continue
+            rpm1 = parent1 / rpmfile.strip()
+            rpm2 = parent2 / rpmfile.strip()
+            try:
+                if not filecmp.cmp(rpm1, rpm2):
+                    log.warning("%s and %s differ in contents", rpm1, rpm2)
+                    return False
+            except OSError as err:
+                log.warning("Error checking comparing %s and %s: %s", rpm1, rpm2, err)
+                return False
+    except OSError as err:
+        log.warning("Error comparing pkglist files %s and %s: %s", pkglist1, pkglist2, err)
+        return False
+    return True
+
+
 def run_createrepo(working_path: Path, arches: t.List[str], log: MaybeLogger = None):
     """
     Run createrepo on the main, source, and debuginfo dirs under the given
@@ -474,6 +558,9 @@ def run_one_tag(options: Options, tag: Tag) -> t.Tuple[bool, str]:
         )
         pull_condor_repos(options, tag, log=log)
         update_pkglist_files(working_path, tag.arches, log=log)
+        if same_pkglist_files(working_path, release_path, tag.arches, log=log):
+            log.info("pkglist files are identical for tag %s, skipping.", tag.name)
+            return True, "skipped"
         run_createrepo(working_path, tag.arches, log=log)
         create_compat_symlink(working_path, log=log)
         create_arches_symlinks(options, working_path, tag.arches, log=log)
