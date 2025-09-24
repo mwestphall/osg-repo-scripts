@@ -1,4 +1,4 @@
-FROM opensciencegrid/software-base:23-el9-release
+FROM opensciencegrid/software-base:24-el9-release
 ARG LOCALE=C.UTF-8
 ENV LANG=$LOCALE
 ENV LC_ALL=$LOCALE
