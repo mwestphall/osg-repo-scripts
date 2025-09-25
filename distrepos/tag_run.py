@@ -516,7 +516,7 @@ def update_release_repos(
 
 def update_sentinels(release_path: Path, arches: list[str], log: MaybeLogger = None) -> bool:
     """
-    Update the 'last-updated' files in each repo to show when we last checked
+    Update the 'last-checked' files in each repo to show when we last checked
     for an update; this file is used to see if mirrors are up to date.
 
     Args:
@@ -532,7 +532,7 @@ def update_sentinels(release_path: Path, arches: list[str], log: MaybeLogger = N
     all_ok = True
     # Check src dir
 
-    src_sentinel = release_path / "src" / "last-updated"
+    src_sentinel = release_path / "src" / "last-checked"
     try:
         src_sentinel.touch(exist_ok=True)
     except OSError as err:
@@ -541,7 +541,7 @@ def update_sentinels(release_path: Path, arches: list[str], log: MaybeLogger = N
 
     # arch-specific repos and debug repos
     for arch in arches:
-        release_arch_sentinel = release_path / arch / "last-updated"
+        release_arch_sentinel = release_path / arch / "last-checked"
         try:
             release_arch_sentinel.touch(exist_ok=True)
         except OSError as err:
@@ -551,7 +551,7 @@ def update_sentinels(release_path: Path, arches: list[str], log: MaybeLogger = N
         release_arch_debug_dir = release_path / arch / "debug"
         if not release_arch_debug_dir.exists():
             continue
-        release_arch_debug_sentinel = release_arch_debug_dir / "last-updated"
+        release_arch_debug_sentinel = release_arch_debug_dir / "last-checked"
         try:
             release_arch_debug_sentinel.touch(exist_ok=True)
         except OSError as err:

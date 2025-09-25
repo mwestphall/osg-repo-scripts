@@ -42,20 +42,20 @@ def get_mirror_info_for_arch(hostname: str, tag: Tag, arch: str) -> t.Tuple[str,
     # TODO this might be a misuse of os.path.join. The more appropriate function,
     # urllib.parse.urljoin, is very sensitive to leading/trailing slashes in the path parts though
     mirror_base = os.path.join(hostname, path_arch)
-    last_updated_url = os.path.join(mirror_base, 'last-updated')
-    return mirror_base, last_updated_url
+    last_checked_url = os.path.join(mirror_base, 'last-checked')
+    return mirror_base, last_checked_url
 
 
-def test_single_mirror(last_updated_url: str) -> bool:
+def test_single_mirror(last_checked_url: str) -> bool:
     """
-    Given the full URL of a 'last-updated' file in a mirror,
+    Given the full URL of a 'last-checked' file in a mirror,
     that file exists and was updated in the past 24 hours.
     """
-    _log.info(f"Checking for existence and up-to-dateness of {last_updated_url}")
-    response = requests.get(last_updated_url, timeout=10)
+    _log.info(f"Checking for existence and up-to-dateness of {last_checked_url}")
+    response = requests.get(last_checked_url, timeout=10)
     if response.status_code != 200:
         _log.warning(
-            f"bad(non 200) response.code for mirror {last_updated_url}: {response.status_code}"
+            f"bad(non 200) response.code for mirror {last_checked_url}: {response.status_code}"
         )
         return False
     else:
@@ -63,7 +63,7 @@ def test_single_mirror(last_updated_url: str) -> bool:
         lastmod_str = response.headers.get("Last-Modified")
         if not lastmod_str:
             _log.warning(
-                f"Mirror {last_updated_url} missing expected 'Last-Modified' header"
+                f"Mirror {last_checked_url} missing expected 'Last-Modified' header"
             )
             return False
         lastmodtime = datetime.strptime(
@@ -72,7 +72,7 @@ def test_single_mirror(last_updated_url: str) -> bool:
         age = datetime.now() - lastmodtime
         if datetime.now() - lastmodtime > timedelta(hours=24):
             _log.warning(
-                f"Mirror {last_updated_url} too old ({age} seconds old) Last-Modified: {lastmod_str} ... ignoring"
+                f"Mirror {last_checked_url} too old ({age} seconds old) Last-Modified: {lastmod_str} ... ignoring"
             )
             return False
         return True
@@ -101,8 +101,8 @@ def update_mirrors_for_tag(options: Options, tag: Tag) -> t.Tuple[bool, str]:
         good_mirrors = []
         for hostname in mirror_hostnames:
             _log.info(f"Checking mirror {hostname}")
-            mirror_base, last_updated_url = get_mirror_info_for_arch(hostname, tag, arch)
-            if test_single_mirror(last_updated_url=last_updated_url):
+            mirror_base, last_checked_url = get_mirror_info_for_arch(hostname, tag, arch)
+            if test_single_mirror(last_checked_url=last_checked_url):
                 good_mirrors.append(mirror_base)
 
         # TODO is it a failure if no mirrors are found outside of osg-hosted repos? Assume no
