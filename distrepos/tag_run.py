@@ -514,6 +514,53 @@ def update_release_repos(
     log.info("Successfully released %s", release_path)
 
 
+def update_sentinels(release_path: Path, arches: list[str], log: MaybeLogger = None) -> bool:
+    """
+    Update the 'last-updated' files in each repo to show when we last checked
+    for an update; this file is used to see if mirrors are up to date.
+
+    Args:
+        release_path: The 'live' repo
+        arches: The list of architectures in the repo
+        log (optional): A logger
+
+    Returns: True if all sentinels were updated, False otherwise.
+    """
+    log = log or _module_logger
+    log.debug("update_sentinel(%r, %r, %r)", release_path, arches)
+
+    all_ok = True
+    # Check src dir
+
+    src_sentinel = release_path / "src" / "last-updated"
+    try:
+        src_sentinel.touch(exist_ok=True)
+    except OSError as err:
+        log.warning("Could not update %s: %s", src_sentinel, err)
+        all_ok = False
+
+    # arch-specific repos and debug repos
+    for arch in arches:
+        release_arch_sentinel = release_path / arch / "last-updated"
+        try:
+            release_arch_sentinel.touch(exist_ok=True)
+        except OSError as err:
+            log.warning("Could not update %s: %s", release_arch_sentinel, err)
+            all_ok = False
+
+        release_arch_debug_dir = release_path / arch / "debug"
+        if not release_arch_debug_dir.exists():
+            continue
+        release_arch_debug_sentinel = release_arch_debug_dir / "last-updated"
+        try:
+            release_arch_debug_sentinel.touch(exist_ok=True)
+        except OSError as err:
+            log.warning("Could not update %s: %s", release_arch_debug_sentinel, err)
+            all_ok = False
+
+    return all_ok
+
+
 def run_one_tag(options: Options, tag: Tag) -> t.Tuple[bool, str]:
     """
     Run all the actions necessary to create a repo for one tag in the config.
@@ -560,6 +607,7 @@ def run_one_tag(options: Options, tag: Tag) -> t.Tuple[bool, str]:
         update_pkglist_files(working_path, tag.arches, log=log)
         if same_pkglist_files(working_path, release_path, tag.arches, log=log):
             log.info("pkglist files are identical for tag %s, skipping.", tag.name)
+            update_sentinels(release_path, tag.arches, log=log)
             return True, "skipped"
         run_createrepo(working_path, tag.arches, log=log)
         create_compat_symlink(working_path, log=log)
@@ -570,6 +618,8 @@ def run_one_tag(options: Options, tag: Tag) -> t.Tuple[bool, str]:
             previous_path=previous_path,
             log=log,
         )
+        update_sentinels(release_path, tag.arches, log=log)
+        return True, ""
     except TagFailure as err:
         log.error("Tag %s failed: %s", tag.name, err)
         log.debug("Traceback follows", exc_info=True)
@@ -581,4 +631,3 @@ def run_one_tag(options: Options, tag: Tag) -> t.Tuple[bool, str]:
                 release_lock(lock_fh, lock_path)
             except OSError as err:
                 log.warning("OSError releasing lock file at %s: %s", lock_path, err)
-    return True, ""

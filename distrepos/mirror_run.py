@@ -42,44 +42,20 @@ def get_mirror_info_for_arch(hostname: str, tag: Tag, arch: str) -> t.Tuple[str,
     # TODO this might be a misuse of os.path.join. The more appropriate function,
     # urllib.parse.urljoin, is very sensitive to leading/trailing slashes in the path parts though
     mirror_base = os.path.join(hostname, path_arch)
-    repomd_url = os.path.join(mirror_base, 'repodata/repomd.xml')
-    return mirror_base, repomd_url
+    last_updated_url = os.path.join(mirror_base, 'last-updated')
+    return mirror_base, last_updated_url
 
 
-def is_migrated(repomd_url: str) -> bool:
+def test_single_mirror(last_updated_url: str) -> bool:
     """
-    Given the URL of a repomd file, check if the repo that owns that file
-    has been migrated to the distrepos format.  This is true if they have
-    a file named "pkglist" as a sibling of the "repodata" folder (which is
-    the parent of the "repomd.xml" file.
-
-    Args:
-        repomd_url: The URL of a repomd.xml file
-
-    Returns: True if the repo is in the distrepos format.
-    """
-    pkglist_url = os.path.dirname(os.path.dirname(repomd_url)) + "/pkglist"
-    _log.info(f"Checking for mirror format based on {pkglist_url}")
-    response = requests.get(pkglist_url, timeout=10)
-    if response.status_code == 404:
-        _log.info(f"pkglist file not found; repo probably not migrated")
-        return False
-    elif response.status_code != 200:
-        _log.warning(f"unexpected response.code for pkglist file {pkglist_url}: {response.status_code}")
-        return False
-    return True
-
-
-def test_single_mirror(repodata_url: str) -> bool:
-    """
-    Given the full URL of a repodata/repomd.xml that might mirror a tag, return whether
+    Given the full URL of a 'last-updated' file in a mirror,
     that file exists and was updated in the past 24 hours.
     """
-    _log.info(f"Checking for existence and up-to-dateness of {repodata_url}")
-    response = requests.get(repodata_url, timeout=10)
+    _log.info(f"Checking for existence and up-to-dateness of {last_updated_url}")
+    response = requests.get(last_updated_url, timeout=10)
     if response.status_code != 200:
         _log.warning(
-            f"bad(non 200) response.code for mirror {repodata_url}: {response.status_code}"
+            f"bad(non 200) response.code for mirror {last_updated_url}: {response.status_code}"
         )
         return False
     else:
@@ -87,7 +63,7 @@ def test_single_mirror(repodata_url: str) -> bool:
         lastmod_str = response.headers.get("Last-Modified")
         if not lastmod_str:
             _log.warning(
-                f"Mirror {repodata_url} missing expected 'Last-Modified' header"
+                f"Mirror {last_updated_url} missing expected 'Last-Modified' header"
             )
             return False
         lastmodtime = datetime.strptime(
@@ -96,16 +72,10 @@ def test_single_mirror(repodata_url: str) -> bool:
         age = datetime.now() - lastmodtime
         if datetime.now() - lastmodtime > timedelta(hours=24):
             _log.warning(
-                f"Mirror {repodata_url} too old ({age} seconds old) Last-Modified: {lastmod_str} ... ignoring"
+                f"Mirror {last_updated_url} too old ({age} seconds old) Last-Modified: {lastmod_str} ... ignoring"
             )
             return False
-        else:
-            if is_migrated(repodata_url):
-                _log.debug(f"Mirror {repodata_url} all good")
-                return True
-            else:
-                _log.debug(f"Mirror {repodata_url} not migrated")
-                return False
+        return True
 
 
 def update_mirrors_for_tag(options: Options, tag: Tag) -> t.Tuple[bool, str]:
@@ -131,8 +101,8 @@ def update_mirrors_for_tag(options: Options, tag: Tag) -> t.Tuple[bool, str]:
         good_mirrors = []
         for hostname in mirror_hostnames:
             _log.info(f"Checking mirror {hostname}")
-            mirror_base, repodata_url = get_mirror_info_for_arch(hostname, tag, arch)
-            if test_single_mirror(repodata_url):
+            mirror_base, last_updated_url = get_mirror_info_for_arch(hostname, tag, arch)
+            if test_single_mirror(last_updated_url=last_updated_url):
                 good_mirrors.append(mirror_base)
 
         # TODO is it a failure if no mirrors are found outside of osg-hosted repos? Assume no
