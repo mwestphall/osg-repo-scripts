@@ -67,6 +67,7 @@ def link_static_data(options: Options, repo_name: str = "osg") -> t.Tuple[bool, 
         
 
 RELEASE_RPM='osg-release'
+RELEASE_RPM_X86_64_V2='osg-release-x86_64_v2'
 RELEASE_PATTERN = re.compile(r"-([0-9]+)\.osg")
 
 def _get_release_number(release_rpm: Path) -> int:
@@ -114,6 +115,22 @@ def link_latest_release(options: Options, release_series: t.List[ReleaseSeries])
             if latest_symlink.resolve() != latest_symlink_target:
                 latest_symlink.unlink(missing_ok=True)
                 latest_symlink.symlink_to(latest_symlink_target)
+
+            if dver == "el10":
+                release_rpms = [
+                    rpm for rpm in (series_root / dver).rglob(f"release/x86_64_v2/**/{RELEASE_RPM_X86_64_V2}*")
+                    if _get_release_number(rpm) > 0
+                ]
+
+                if not release_rpms:
+                    return False, f"No x86_64_v2 release RPMs found for series {series.name}"
+
+                release_rpms.sort(key = _get_release_number, reverse=True)
+                latest_symlink = series_root / f"osg-{series.name}-{dver}-release-latest.x86_64_v2.rpm"
+                latest_symlink_target = release_rpms[0].relative_to(latest_symlink.parent)
+                if latest_symlink.resolve() != latest_symlink_target:
+                    latest_symlink.unlink(missing_ok=True)
+                    latest_symlink.symlink_to(latest_symlink_target)
 
     return True, ""
 
