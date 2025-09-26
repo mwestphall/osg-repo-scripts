@@ -285,7 +285,7 @@ def sync_tarballs(options: Options) -> int:
             _log.info("tarball clients updated successfully")
             return 0
         else:
-            _log.warning(f"Unable to sync tarball clietns: {err}")
+            _log.warning(f"Unable to sync tarball clients: {err}")
             return ERR_FAILURES
     except Exception as e:
         _log.exception(f"Unexpected error syncing tarball clients: {e}")
