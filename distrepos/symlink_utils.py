@@ -66,8 +66,8 @@ def link_static_data(options: Options, repo_name: str = "osg") -> t.Tuple[bool, 
     return True, ""
         
 
-RELEASE_RPM='osg-release'
-RELEASE_RPM_X86_64_V2='osg-release-x86_64_v2'
+RELEASE_RPM_GLOB = 'osg-release-[0-9]*.noarch.rpm'
+RELEASE_RPM_X86_64_V2_GLOB = 'osg-release-x86_64_v2*x86_64_v2.rpm'
 RELEASE_PATTERN = re.compile(r"-([0-9]+)\.osg")
 
 def _get_release_number(release_rpm: Path) -> int:
@@ -102,7 +102,7 @@ def link_latest_release(options: Options, release_series: t.List[ReleaseSeries])
             # Filter release rpms in the repo down to ones in the "primary" arch 
             # with parse-able release numbers
             release_rpms = [
-                rpm for rpm in (series_root / dver).rglob(f"release/{base_arch}/**/{RELEASE_RPM}*")
+                rpm for rpm in (series_root / dver).rglob(f"release/{base_arch}/**/{RELEASE_RPM_GLOB}")
                 if _get_release_number(rpm) > 0
             ]
             
@@ -118,7 +118,7 @@ def link_latest_release(options: Options, release_series: t.List[ReleaseSeries])
 
             if dver == "el10":
                 release_rpms = [
-                    rpm for rpm in (series_root / dver).rglob(f"release/x86_64_v2/**/{RELEASE_RPM_X86_64_V2}*")
+                    rpm for rpm in (series_root / dver).rglob(f"release/x86_64_v2/**/{RELEASE_RPM_X86_64_V2_GLOB}")
                     if _get_release_number(rpm) > 0
                 ]
 
